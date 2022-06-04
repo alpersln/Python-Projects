@@ -4,6 +4,8 @@ import discord
 from discord.ext import commands, tasks
 from utils import *
 from functions import *
+from model import *
+from enviroments import *
 
 intents = discord.Intents(messages=True, guilds=True, reactions=True, members=True)
 Bot = commands.Bot("!23 ", intents=intents)
@@ -40,6 +42,11 @@ async def on_member_join(member):
     print(f"{member} aramıza katıldı, Hoş geldin!")
 
 
+@Bot.event
+async def on_command_error(ctx, error):
+    await ctx.send(error)
+
+
 ext_file_types = ['png', 'jpg', 'jpeg', 'gif']
 
 
@@ -66,6 +73,71 @@ async def helpCommand():
 @Bot.event
 async def on_member_remove(member):
     print(f"{member} aramızdan ayrıldı :(")
+
+
+@Bot.command()
+async def work(ctx):
+    discord_id = ctx.message.author.id
+    now = datetime.now()
+    user = get_user_or_false(discord_id)
+    if user:
+        if is_more_than_one_hour(user.work):
+            user.money = user.money + 1000
+            user.work = now.strftime(TIME_STAMP_PATTERN)
+            user.update()
+            await ctx.send(f" 1000$ hesabınıza eklendi, şu an toplam {user.money}$ bakiyeniz var!! ")
+        else:
+            await ctx.send(f"tekrar çalışabilmen için 1 saat beklemen gerekli")
+    else:
+        person = Person(discord_id, 1000, now.strftime(TIME_STAMP_PATTERN), 0).save()
+        await ctx.send(f"Hoş geldiniz!!, {person.money}$ paranız var!!")
+    db.commit()
+
+
+@Bot.command()
+async def money(ctx):
+    user = get_user_or_false(ctx.message.author.id)
+    if user:
+        await ctx.send(f"bakiyeniz {user.money}$, Banka hesabı: {user.bank}$")
+    else:
+        await ctx.send(f"önce çalışmanız gerekli")
+
+
+@Bot.command()
+async def bank(ctx, transfer: int):
+    user = get_user_or_false(ctx.message.author.id)
+    if user:
+        if transfer > user.money:
+            await ctx.send(f"transfer miktarı bakiyenizden fazla olamaz")
+            return
+        user.bank, user.money = transfer, user.money - transfer
+        user.update()
+        db.commit()
+        await ctx.send(f"bakiyeniz {user.money}$, Banka hesabı: {user.bank}$")
+    else:
+        await ctx.send(f"önce çalışmanız gerekli")
+
+
+@Bot.command()
+async def gamble(ctx, amount=0):
+    import random
+    user = get_user_or_false(ctx.message.author.id)
+    if user:
+        if amount > user.money:
+            await ctx.send(f"yeterli bakiyeniz yoktur bakiyeniz:{user.money}")
+        if random.randint(0, 2):
+            user.money = user.money + amount
+            await ctx.send(f"Kazandınız!! anlık bakiyenizz: {user.money}$")
+
+        else:
+            user.money = user.money - amount
+            await ctx.send(f"Kaybettin :( anlık bakiyeniz: {user.money}$")
+
+        user.update()
+        db.commit()
+
+    else:
+        await ctx.send(f"önce çalışmanız gerekli")
 
 
 @Bot.command(aliases=["game", "oyun", "roll", "zar at"])
